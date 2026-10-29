@@ -12,6 +12,7 @@ type Post struct {
 	AuthorID  uuid.UUID
 	Title     string
 	Content   string
+	LikeCount int
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
