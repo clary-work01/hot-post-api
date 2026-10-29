@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/clary-work01/hot-post-api/internal/domain"
+	"github.com/clary-work01/hot-post-api/internal/domain/user"
 )
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, data any) error {
@@ -40,6 +41,8 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 		JSON(w, http.StatusNotFound, "資源不存在", nil)
 	case errors.Is(err, domain.ErrInvalidInput):
 		JSON(w, http.StatusBadRequest, "參數錯誤", nil)
+	case errors.Is(err, user.ErrCannotFollowSelf):
+		JSON(w, http.StatusBadRequest, "不能關注自己", nil)
 	default:
 		JSON(w, http.StatusInternalServerError, "系統錯誤", nil)
 
