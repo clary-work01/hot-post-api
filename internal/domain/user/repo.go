@@ -53,3 +53,33 @@ func (r *Repo) unFollow(ctx context.Context, followerID, followeeID uuid.UUID) (
 
 	return res.RowsAffected == 1, nil
 }
+
+func (r *Repo) profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profile, error) {
+	var proile Profile
+
+	res := r.db.WithContext(ctx).
+		Table("users AS u").
+		Select(
+			`u.id, u.username,
+			(SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id) AS post_count,
+			(SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS follower_count,
+			(SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id) AS following_count,
+			EXISTS (
+				SELECT 1 from follows f 
+				WHERE follower_id = ? AND followee_id = u.id
+			) AS is_following
+		`, viewerID).
+		Where("u.id = ?", userID).
+		Scan(&proile)
+
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	// Scan 查不到不會回 ErrRecordNotFound，要自己看筆數
+	if res.RowsAffected == 0 {
+		return nil, domain.ErrNotFound
+	}
+
+	return &proile, nil
+}

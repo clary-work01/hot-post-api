@@ -26,3 +26,12 @@ type Follow struct {
 	FolloweeID uuid.UUID
 	CreatedAt  time.Time
 }
+
+type Profile struct {
+	ID             uuid.UUID
+	Username       string
+	PostCount      int
+	FollowerCount  int
+	FollowingCount int
+	IsFollowing    bool
+}

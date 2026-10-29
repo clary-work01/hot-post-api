@@ -20,6 +20,7 @@ func NewUserHandler(svc *user.Service) *UserHandler {
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /users/{id}/follow", h.follow)
 	mux.HandleFunc("DELETE /users/{id}/follow", h.unfollow)
+	mux.HandleFunc("GET /users/{id}", h.profile)
 }
 
 // PUT /users/{id}/follow
@@ -58,4 +59,43 @@ func (h *UserHandler) unfollow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, "unfollow user success", nil)
+}
+
+// ---- DTO ----
+type ProfileResp struct {
+	ID             uuid.UUID `json:"id"`
+	Username       string    `json:"username"`
+	PostCount      int       `json:"post_count"`
+	FollowerCount  int       `json:"follower_count"`
+	FollowingCount int       `json:"following_count"`
+	IsFollowing    bool      `json:"is_following"`
+}
+
+func toProfileResp(p *user.Profile) *ProfileResp {
+	return &ProfileResp{
+		ID:             p.ID,
+		Username:       p.Username,
+		PostCount:      p.PostCount,
+		FollowerCount:  p.FollowerCount,
+		FollowingCount: p.FollowingCount,
+		IsFollowing:    p.IsFollowing,
+	}
+}
+
+// GET /users/{id}
+func (h *UserHandler) profile(w http.ResponseWriter, r *http.Request) {
+	userID, err := parseID(r)
+	if err != nil {
+		writeError(w, r, fmt.Errorf("parse id %w", domain.ErrInvalidInput))
+		return
+	}
+	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+
+	profile, err := h.svc.Profile(r.Context(), userID, viewerID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	JSON(w, http.StatusOK, "get profile success", toProfileResp(profile))
 }

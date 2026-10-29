@@ -39,3 +39,7 @@ func (s *Service) UnFollow(ctx context.Context, followerID, followeeID uuid.UUID
 	_, err := s.repo.unFollow(ctx, followerID, followeeID)
 	return err
 }
+
+func (s *Service) Profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profile, error) {
+	return s.repo.profile(ctx, userID, viewerID)
+}
