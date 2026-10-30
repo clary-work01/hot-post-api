@@ -55,7 +55,7 @@ func (r *Repo) unFollow(ctx context.Context, followerID, followeeID uuid.UUID) (
 }
 
 func (r *Repo) profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profile, error) {
-	var proile Profile
+	var profile Profile
 
 	res := r.db.WithContext(ctx).
 		Table("users AS u").
@@ -70,7 +70,7 @@ func (r *Repo) profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profil
 			) AS is_following
 		`, viewerID).
 		Where("u.id = ?", userID).
-		Scan(&proile)
+		Scan(&profile)
 
 	if res.Error != nil {
 		return nil, res.Error
@@ -81,5 +81,60 @@ func (r *Repo) profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profil
 		return nil, domain.ErrNotFound
 	}
 
-	return &proile, nil
+	return &profile, nil
+}
+
+func (r *Repo) followers(ctx context.Context, followeeID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
+	var items []FollowItem
+
+	err := r.db.WithContext(ctx).
+		Raw(`
+			SELECT u.id, u.username, f.created_at AS followed_at,
+			EXISTS(
+				SELECT 1 FROM follows mf
+				WHERE mf.follower_id = ? AND mf.followee_id = u.id
+			) AS is_following
+			FROM users u
+			JOIN follows f ON u.id = f.follower_id
+			WHERE f.followee_id = ?
+			ORDER BY f.created_at DESC, f.follower_id DESC
+			LIMIT ?
+			OFFSET ?
+		`, viewerID, followeeID, limit, offset).Scan(&items).Error
+
+	return items, err
+}
+
+func (r *Repo) followees(ctx context.Context, followerID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
+	var items []FollowItem
+
+	err := r.db.WithContext(ctx).
+		Raw(`
+			SELECT u.id, u.username, f.created_at AS followed_at,
+			EXISTS(
+				SELECT 1 FROM follows mf
+				WHERE mf.follower_id = ? AND mf.followee_id = u.id
+			) AS is_following
+			FROM users u
+			JOIN follows f ON u.id = f.followee_id
+			WHERE f.follower_id = ?
+			ORDER BY f.created_at DESC, f.followee_id DESC
+			LIMIT ?
+			OFFSET ?
+		`, viewerID, followerID, limit, offset).Scan(&items).Error
+
+	return items, err
+}
+
+func (r *Repo) userExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.db.WithContext(ctx).
+		Raw(
+			`SELECT EXISTS (
+				SELECT 1 FROM users
+				WHERE id = ?
+			)`, id).
+		Scan(&exists).Error
+
+	return exists, err
 }

@@ -35,3 +35,11 @@ type Profile struct {
 	FollowingCount int
 	IsFollowing    bool
 }
+
+// FollowItem: 粉絲/關注列表中的一筆
+type FollowItem struct {
+	ID          uuid.UUID
+	Username    string
+	FollowedAt  time.Time
+	IsFollowing bool
+}
