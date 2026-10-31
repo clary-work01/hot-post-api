@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ func NewPostHandler(svc *post.Service) *PostHandler {
 
 func (h *PostHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /posts", h.create)
+	mux.HandleFunc("GET /posts/{id}", h.detail)
 }
 
 // ---- request DTO ----
@@ -36,8 +38,19 @@ type postResp struct {
 	AuthorID  uuid.UUID `json:"author_id"`
 	Title     string    `json:"title"`
 	Content   string    `json:"content"`
+	LikeCount int       `json:"like_count"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type PostDetailResp struct {
+	postResp
+	AuthorName string `json:"author_name"`
+	IsLiked    bool   `json:"is_liked"`
+}
+
+type PostListResp struct {
+	List []PostDetailResp `json:"list"`
 }
 
 func toPostResp(p *post.Post) postResp {
@@ -46,11 +59,21 @@ func toPostResp(p *post.Post) postResp {
 		AuthorID:  p.AuthorID,
 		Title:     p.Title,
 		Content:   p.Content,
+		LikeCount: p.LikeCount,
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
 	}
 }
 
+func toPostDetailResp(p *post.PostDetail) PostDetailResp {
+	return PostDetailResp{
+		postResp:   toPostResp(&p.Post),
+		AuthorName: p.AuthorName,
+		IsLiked:    p.IsLiked,
+	}
+}
+
+// POST /posts
 func (h *PostHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req createPostReq
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -81,4 +104,23 @@ func (h *PostHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusCreated, "post created successfully", toPostResp(p))
+}
+
+// GET /posts/{id}
+func (h *PostHandler) detail(w http.ResponseWriter, r *http.Request) {
+	postID, err := parseID(r)
+	if err != nil {
+		writeError(w, r, fmt.Errorf("parse id: %w", domain.ErrInvalidInput))
+		return
+	}
+
+	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+
+	p, err := h.svc.Detail(r.Context(), postID, viewerID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	JSON(w, http.StatusOK, "get post detail success", toPostDetailResp(p))
 }

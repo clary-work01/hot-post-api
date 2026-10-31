@@ -23,3 +23,9 @@ func (p *Post) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+type PostDetail struct {
+	Post
+	AuthorName string
+	IsLiked    bool
+}

@@ -29,3 +29,7 @@ func (s *Service) Create(ctx context.Context, authorID uuid.UUID, title string, 
 
 	return p, nil
 }
+
+func (s *Service) Detail(ctx context.Context, postID, viewerID uuid.UUID) (*PostDetail, error) {
+	return s.repo.detail(ctx, postID, viewerID)
+}
