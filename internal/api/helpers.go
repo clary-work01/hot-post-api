@@ -44,7 +44,7 @@ func parseLimit(s string) (limit int, ok bool) {
 	}
 
 	n, err := strconv.Atoi(s)
-	if err != nil || n < 0 {
+	if err != nil || n <= 0 {
 		return 0, false
 	}
 	if n > maxLimit {

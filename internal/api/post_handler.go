@@ -24,6 +24,8 @@ func NewPostHandler(svc *post.Service) *PostHandler {
 func (h *PostHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /posts", h.create)
 	mux.HandleFunc("GET /posts/{id}", h.detail)
+	mux.HandleFunc("GET /posts", h.list)
+
 }
 
 // ---- request DTO ----
@@ -43,14 +45,27 @@ type postResp struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type PostDetailResp struct {
+type postDetailResp struct {
 	postResp
 	AuthorName string `json:"author_name"`
 	IsLiked    bool   `json:"is_liked"`
 }
 
-type PostListResp struct {
-	List []PostDetailResp `json:"list"`
+type postSummaryResp struct {
+	ID         uuid.UUID `json:"id"`
+	AuthorID   uuid.UUID `json:"author_id"`
+	AuthorName string    `json:"author_name"`
+	Title      string    `json:"title"`
+	Excerpt    string    `json:"excerpt"`
+	LikeCount  int       `json:"like_count"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	IsLiked    bool      `json:"is_liked"`
+}
+
+type postListResp struct {
+	List  []postSummaryResp `json:"list"`
+	Total int64             `json:"total"`
 }
 
 func toPostResp(p *post.Post) postResp {
@@ -65,11 +80,37 @@ func toPostResp(p *post.Post) postResp {
 	}
 }
 
-func toPostDetailResp(p *post.PostDetail) PostDetailResp {
-	return PostDetailResp{
+func toPostDetailResp(p *post.Detail) postDetailResp {
+	return postDetailResp{
 		postResp:   toPostResp(&p.Post),
 		AuthorName: p.AuthorName,
 		IsLiked:    p.IsLiked,
+	}
+}
+
+func toPostSummaryResp(p *post.Summary) postSummaryResp {
+	return postSummaryResp{
+		ID:         p.ID,
+		AuthorID:   p.AuthorID,
+		AuthorName: p.AuthorName,
+		Title:      p.Title,
+		Excerpt:    p.Excerpt,
+		LikeCount:  p.LikeCount,
+		CreatedAt:  p.CreatedAt,
+		UpdatedAt:  p.UpdatedAt,
+		IsLiked:    p.IsLiked,
+	}
+}
+
+func toPostListResp(list []post.Summary, total int64) postListResp {
+	resp := make([]postSummaryResp, len(list))
+
+	for i, summary := range list {
+		resp[i] = toPostSummaryResp(&summary)
+	}
+	return postListResp{
+		List:  resp,
+		Total: total,
 	}
 }
 
@@ -123,4 +164,30 @@ func (h *PostHandler) detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, "get post detail success", toPostDetailResp(p))
+}
+
+// GET /posts?limit=&offset=
+func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
+	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+
+	q := r.URL.Query()
+	offset, ok := parseOffset(q.Get("offset"))
+	if !ok {
+		writeError(w, r, fmt.Errorf("parse offset: %w", domain.ErrInvalidInput))
+		return
+	}
+
+	limit, ok := parseLimit(q.Get("limit"))
+	if !ok {
+		writeError(w, r, fmt.Errorf("parse limit: %w", domain.ErrInvalidInput))
+		return
+	}
+
+	list, total, err := h.svc.List(r.Context(), offset, limit, viewerID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	JSON(w, http.StatusOK, "get post list success", toPostListResp(list, total))
 }

@@ -24,8 +24,21 @@ func (p *Post) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-type PostDetail struct {
+type Detail struct {
 	Post
 	AuthorName string
+	IsLiked    bool
+}
+
+// 不回content內容 回excerpt摘要
+type Summary struct {
+	ID         uuid.UUID
+	AuthorID   uuid.UUID
+	AuthorName string
+	Title      string
+	Excerpt    string
+	LikeCount  int
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 	IsLiked    bool
 }

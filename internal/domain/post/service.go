@@ -30,6 +30,10 @@ func (s *Service) Create(ctx context.Context, authorID uuid.UUID, title string, 
 	return p, nil
 }
 
-func (s *Service) Detail(ctx context.Context, postID, viewerID uuid.UUID) (*PostDetail, error) {
+func (s *Service) Detail(ctx context.Context, postID, viewerID uuid.UUID) (*Detail, error) {
 	return s.repo.detail(ctx, postID, viewerID)
+}
+
+func (s *Service) List(ctx context.Context, offset, limit int, viewerID uuid.UUID) (list []Summary, total int64, err error) {
+	return s.repo.list(ctx, offset, limit, viewerID)
 }
