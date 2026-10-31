@@ -16,6 +16,7 @@ import (
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
 	"github.com/clary-work01/hot-post-api/internal/infra/cache"
 	"github.com/clary-work01/hot-post-api/internal/infra/db"
+	"github.com/clary-work01/hot-post-api/internal/token"
 )
 
 func main() {
@@ -26,7 +27,10 @@ func main() {
 }
 
 func run() error {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -34,11 +38,11 @@ func run() error {
 	// ---- Postgres ----
 	gormDB, err := db.NewPostgres(ctx, cfg.DatabaseURL)
 	if err != nil {
-		return fmt.Errorf("connect postgres failed: %w", err)
+		return fmt.Errorf("connect postgres: %w", err)
 	}
 	sqlDB, err := gormDB.DB()
 	if err != nil {
-		return fmt.Errorf("get sql.DB failed: %w", err)
+		return fmt.Errorf("get sql.DB: %w", err)
 	}
 	defer sqlDB.Close()
 	slog.Info("connect postgres success")
@@ -46,7 +50,7 @@ func run() error {
 	// ---- Redis ----
 	rdb, err := cache.NewRedis(ctx, cfg.RedisAddr)
 	if err != nil {
-		return fmt.Errorf("connect redis failed: %w", err)
+		return fmt.Errorf("connect redis: %w", err)
 	}
 	defer rdb.Close()
 	slog.Info("connect redis success")
@@ -59,14 +63,15 @@ func run() error {
 			w.Write([]byte("OK"))
 		})
 
+	tokenMgr := token.NewManager(cfg.JWTSecret, auth.AccessTTL)
 	userRepo := user.NewRepo(gormDB)
 
-	authSvc := auth.NewService(userRepo)
+	authSvc := auth.NewService(auth.NewRepo(gormDB), userRepo, tokenMgr)
 	userSvc := user.NewService(userRepo)
 	postSvc := post.NewService(post.NewRepo(gormDB))
 	likeSvc := like.NewService(like.NewRepo(gormDB))
 
-	authHandler := api.NewAuthHandler(authSvc)
+	authHandler := api.NewAuthHandler(authSvc, cfg.IsProduction())
 	authHandler.RegisterRoutes(mux)
 
 	userHandler := api.NewUserHandler(userSvc)
@@ -81,7 +86,7 @@ func run() error {
 	// ---- Start Server ----
 	slog.Info("server starting", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, mux); err != nil {
-		return fmt.Errorf("server failed: %w", err)
+		return fmt.Errorf("start server: %w", err)
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -13,7 +14,7 @@ func NewRedis(ctx context.Context, addr string) (*redis.Client, error) {
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		rdb.Close()
-		return nil, err
+		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 	return rdb, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/google/uuid"
@@ -22,11 +23,11 @@ func (r *Repo) create(ctx context.Context, post *Post) error {
 	err := r.db.WithContext(ctx).
 		Create(post).Error
 
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return domain.ErrConflict
+	if err != nil {
+		return fmt.Errorf("create post (author_id %s): %w", post.AuthorID, err)
 	}
 
-	return err
+	return nil
 }
 
 const isLikedExpr = `EXISTS (
@@ -58,7 +59,7 @@ func (r *Repo) detail(ctx context.Context, postID, viewerID uuid.UUID) (*Detail,
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get post detail (%s): %w", postID, err)
 	}
 
 	return &detail, nil
@@ -96,7 +97,7 @@ func (r *Repo) list(ctx context.Context, offset, limit int, viewerID uuid.UUID) 
 		Find(&list).Error
 
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("list posts: %w", err)
 	}
 
 	return list, total, nil

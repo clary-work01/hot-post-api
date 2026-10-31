@@ -33,6 +33,21 @@ func (r *Repo) Create(ctx context.Context, u *User) error {
 	return nil
 }
 
+func (r *Repo) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+	var u User
+	err := r.db.WithContext(ctx).Where("username = ?", username).Take(&u).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrNotFound
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("get user by username (%s): %w", username, err)
+	}
+
+	return &u, nil
+}
+
 func (r *Repo) follow(ctx context.Context, follow *Follow) (inserted bool, err error) {
 	res := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
@@ -116,6 +131,9 @@ func (r *Repo) followers(ctx context.Context, followeeID, viewerID uuid.UUID, of
 			LIMIT ?
 			OFFSET ?
 		`, viewerID, followeeID, limit, offset).Scan(&items).Error
+	if err != nil {
+		return nil, fmt.Errorf("list followers (user %s): %w", followeeID, err)
+	}
 
 	return items, err
 }
@@ -138,6 +156,10 @@ func (r *Repo) followees(ctx context.Context, followerID, viewerID uuid.UUID, of
 			OFFSET ?
 		`, viewerID, followerID, limit, offset).Scan(&items).Error
 
+	if err != nil {
+		return nil, fmt.Errorf("list followees (user %s): %w", followerID, err)
+	}
+
 	return items, err
 }
 
@@ -151,5 +173,9 @@ func (r *Repo) userExists(ctx context.Context, id uuid.UUID) (bool, error) {
 			)`, id).
 		Scan(&exists).Error
 
-	return exists, err
+	if err != nil {
+		return false, fmt.Errorf("check user exists (%s): %w", id, err)
+	}
+
+	return exists, nil
 }

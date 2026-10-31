@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/clary-work01/hot-post-api/internal/domain"
+	"github.com/clary-work01/hot-post-api/internal/domain/auth"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
 )
 
@@ -42,6 +43,9 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 
 	case errors.Is(err, user.ErrUsernameTaken):
 		JSON(w, http.StatusBadRequest, "用戶名已存在", nil) // 400
+
+	case errors.Is(err, auth.ErrInvalidCredentials):
+		JSON(w, http.StatusUnauthorized, "帳密錯誤", nil) // 401
 
 	case errors.Is(err, domain.ErrInvalidInput):
 		JSON(w, http.StatusBadRequest, "參數錯誤", nil) // 400
