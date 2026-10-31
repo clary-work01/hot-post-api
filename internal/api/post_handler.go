@@ -1,12 +1,11 @@
 package api
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/clary-work01/hot-post-api/internal/domain/post"
 	"github.com/google/uuid"
 )
@@ -32,6 +31,16 @@ func (h *PostHandler) RegisterRoutes(mux *http.ServeMux) {
 type createPostReq struct {
 	Title   string `json:"title"`
 	Content string `json:"content"`
+}
+
+func (req *createPostReq) validate() error {
+	req.Title = strings.TrimSpace(req.Title)
+	req.Content = strings.TrimSpace(req.Content)
+
+	if req.Title == "" || req.Content == "" {
+		return errors.New("參數title、content不得為空字串")
+	}
+	return nil
 }
 
 // ---- response DTO ----
@@ -118,21 +127,17 @@ func toPostListResp(list []post.Summary, total int64) postListResp {
 func (h *PostHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req createPostReq
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, r, domain.ErrInvalidInput)
+		JSON(w, http.StatusBadRequest, "參數錯誤", nil)
 		return
 	}
 
-	// ---- Validation ----
-	req.Title = strings.TrimSpace(req.Title)
-	req.Content = strings.TrimSpace(req.Content)
-
-	if req.Title == "" || req.Content == "" {
-		writeError(w, r, domain.ErrInvalidInput)
+	if err := req.validate(); err != nil {
+		JSON(w, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
-	// ---- Insert ----
 	authorID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+
 	p, err := h.svc.Create(
 		r.Context(),
 		authorID,
@@ -151,7 +156,7 @@ func (h *PostHandler) create(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) detail(w http.ResponseWriter, r *http.Request) {
 	postID, err := parseID(r)
 	if err != nil {
-		writeError(w, r, fmt.Errorf("parse id: %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
 		return
 	}
 
@@ -173,13 +178,13 @@ func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	offset, ok := parseOffset(q.Get("offset"))
 	if !ok {
-		writeError(w, r, fmt.Errorf("parse offset: %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數offset錯誤", nil)
 		return
 	}
 
 	limit, ok := parseLimit(q.Get("limit"))
 	if !ok {
-		writeError(w, r, fmt.Errorf("parse limit: %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數limit錯誤", nil)
 		return
 	}
 

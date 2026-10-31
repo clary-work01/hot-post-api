@@ -10,6 +10,7 @@ import (
 
 	"github.com/clary-work01/hot-post-api/internal/api"
 	"github.com/clary-work01/hot-post-api/internal/config"
+	"github.com/clary-work01/hot-post-api/internal/domain/auth"
 	"github.com/clary-work01/hot-post-api/internal/domain/like"
 	"github.com/clary-work01/hot-post-api/internal/domain/post"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
@@ -58,9 +59,15 @@ func run() error {
 			w.Write([]byte("OK"))
 		})
 
-	userSvc := user.NewService(user.NewRepo(gormDB))
+	userRepo := user.NewRepo(gormDB)
+
+	authSvc := auth.NewService(userRepo)
+	userSvc := user.NewService(userRepo)
 	postSvc := post.NewService(post.NewRepo(gormDB))
 	likeSvc := like.NewService(like.NewRepo(gormDB))
+
+	authHandler := api.NewAuthHandler(authSvc)
+	authHandler.RegisterRoutes(mux)
 
 	userHandler := api.NewUserHandler(userSvc)
 	userHandler.RegisterRoutes(mux)

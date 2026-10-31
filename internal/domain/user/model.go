@@ -1,10 +1,16 @@
 package user
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+)
+
+var (
+	ErrCannotFollowSelf = errors.New("cannot follow yourself")
+	ErrUsernameTaken    = errors.New("user name is already taken")
 )
 
 type User struct {

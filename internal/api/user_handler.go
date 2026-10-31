@@ -115,7 +115,7 @@ func toFollowListResp(items []user.FollowItem) *FollowListResp {
 func (h *UserHandler) profile(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseID(r)
 	if err != nil {
-		writeError(w, r, fmt.Errorf("parse id %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
 		return
 	}
 	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
@@ -133,7 +133,7 @@ func (h *UserHandler) profile(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) followers(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseID(r)
 	if err != nil {
-		writeError(w, r, fmt.Errorf("parse id %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
 		return
 	}
 	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
@@ -141,13 +141,13 @@ func (h *UserHandler) followers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	offset, ok := parseOffset(q.Get("offset"))
 	if !ok {
-		writeError(w, r, fmt.Errorf("parse offset %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數offset錯誤", nil)
 		return
 	}
 
 	limit, ok := parseLimit(q.Get("limit"))
 	if !ok {
-		writeError(w, r, fmt.Errorf("parse limit %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數limit錯誤", nil)
 		return
 	}
 
@@ -164,7 +164,7 @@ func (h *UserHandler) followers(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) followees(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseID(r)
 	if err != nil {
-		writeError(w, r, fmt.Errorf("parse id %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
 		return
 	}
 	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
@@ -172,13 +172,13 @@ func (h *UserHandler) followees(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	offset, ok := parseOffset(q.Get("offset"))
 	if !ok {
-		writeError(w, r, fmt.Errorf("parse offset %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數offset錯誤", nil)
 		return
 	}
 
 	limit, ok := parseLimit(q.Get("limit"))
 	if !ok {
-		writeError(w, r, fmt.Errorf("parse limit %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數limit錯誤", nil)
 		return
 	}
 

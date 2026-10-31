@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/google/uuid"
@@ -18,6 +19,20 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db}
 }
 
+func (r *Repo) Create(ctx context.Context, u *User) error {
+	err := r.db.WithContext(ctx).Create(u).Error
+
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return ErrUsernameTaken
+	}
+
+	if err != nil {
+		return fmt.Errorf("create user (%s): %w", u.Username, err)
+	}
+
+	return nil
+}
+
 func (r *Repo) follow(ctx context.Context, follow *Follow) (inserted bool, err error) {
 	res := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
@@ -30,7 +45,7 @@ func (r *Repo) follow(ctx context.Context, follow *Follow) (inserted bool, err e
 	}
 
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("follow (%s->%s): %w", follow.FollowerID, follow.FolloweeID, err)
 	}
 
 	return res.RowsAffected == 1, nil
@@ -48,7 +63,7 @@ func (r *Repo) unFollow(ctx context.Context, followerID, followeeID uuid.UUID) (
 	}
 
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("unfollow (%s->%s): %w", followerID, followeeID, err)
 	}
 
 	return res.RowsAffected == 1, nil
@@ -73,7 +88,7 @@ func (r *Repo) profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profil
 		Scan(&profile)
 
 	if res.Error != nil {
-		return nil, res.Error
+		return nil, fmt.Errorf("get profile (user %s, viewer %s): %w", userID, viewerID, res.Error)
 	}
 
 	// Scan 查不到不會回 ErrRecordNotFound，要自己看筆數

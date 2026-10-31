@@ -37,11 +37,14 @@ func JSON(w http.ResponseWriter, status int, msg string, data any) error {
 
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, domain.ErrInvalidInput):
-		JSON(w, http.StatusBadRequest, "參數錯誤", nil) // 400
-
 	case errors.Is(err, user.ErrCannotFollowSelf):
 		JSON(w, http.StatusBadRequest, "不能關注自己", nil) // 400
+
+	case errors.Is(err, user.ErrUsernameTaken):
+		JSON(w, http.StatusBadRequest, "用戶名已存在", nil) // 400
+
+	case errors.Is(err, domain.ErrInvalidInput):
+		JSON(w, http.StatusBadRequest, "參數錯誤", nil) // 400
 
 	case errors.Is(err, domain.ErrNotFound):
 		JSON(w, http.StatusNotFound, "資源不存在", nil) // 404

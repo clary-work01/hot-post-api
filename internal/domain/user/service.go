@@ -2,13 +2,10 @@ package user
 
 import (
 	"context"
-	"errors"
 
 	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/google/uuid"
 )
-
-var ErrCannotFollowSelf = errors.New("cannot follow yourself")
 
 type Service struct {
 	repo *Repo

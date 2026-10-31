@@ -1,10 +1,8 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
-	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/clary-work01/hot-post-api/internal/domain/like"
 	"github.com/google/uuid"
 )
@@ -25,7 +23,7 @@ func (h *LikeHandler) RegisterRoutes(mux *http.ServeMux) {
 func (h *LikeHandler) like(w http.ResponseWriter, r *http.Request) {
 	postID, err := parseID(r)
 	if err != nil {
-		writeError(w, r, fmt.Errorf("parse id %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
 		return
 	}
 
@@ -42,7 +40,7 @@ func (h *LikeHandler) like(w http.ResponseWriter, r *http.Request) {
 func (h *LikeHandler) unlike(w http.ResponseWriter, r *http.Request) {
 	postID, err := parseID(r)
 	if err != nil {
-		writeError(w, r, fmt.Errorf("parse id %w", domain.ErrInvalidInput))
+		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
 		return
 	}
 
