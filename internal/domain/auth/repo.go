@@ -28,7 +28,7 @@ func (r *Repo) createRefreshToken(ctx context.Context, rt *RefreshToken) error {
 }
 
 // 作廢舊的refresh token ＋ 寫入新的，同一個 transaction
-func (r *Repo) RotateRefreshToken(ctx context.Context, oldTokenHash string, newToken *RefreshToken) (uuid.UUID, error) {
+func (r *Repo) rotateRefreshToken(ctx context.Context, oldTokenHash string, newToken *RefreshToken) (uuid.UUID, error) {
 	var userID uuid.UUID
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -62,4 +62,17 @@ func (r *Repo) RotateRefreshToken(ctx context.Context, oldTokenHash string, newT
 	}
 
 	return userID, nil
+}
+
+func (r *Repo) revokeRefreshToken(ctx context.Context, tokenHash string) error {
+	err := r.db.WithContext(ctx).
+		Model(&RefreshToken{}).
+		Where("token_hash = ? AND revoked_at IS NULL", tokenHash).
+		Update("revoked_at", gorm.Expr("NOW()")).Error
+
+	if err != nil {
+		return fmt.Errorf("revoke refresh token: %w", err)
+	}
+
+	return nil
 }

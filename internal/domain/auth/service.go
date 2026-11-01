@@ -109,7 +109,7 @@ func (s *Service) Refresh(ctx context.Context, oldRefresh string) (*RefreshResul
 
 	newRefresh, newRefreshHash := newRefreshToken()
 
-	userID, err := s.repo.RotateRefreshToken(ctx, hashToken(oldRefresh), &RefreshToken{
+	userID, err := s.repo.rotateRefreshToken(ctx, hashToken(oldRefresh), &RefreshToken{
 		TokenHash: newRefreshHash,
 		ExpiresAt: time.Now().Add(RefreshTTL),
 	})
@@ -126,6 +126,14 @@ func (s *Service) Refresh(ctx context.Context, oldRefresh string) (*RefreshResul
 		AccessToken:  newAccess,
 		RefreshToken: newRefresh,
 	}, nil
+}
+
+func (s *Service) Logout(ctx context.Context, refresh string) error {
+	if refresh == "" {
+		return ErrInvalidRefreshToken
+	}
+
+	return s.repo.revokeRefreshToken(ctx, hashToken(refresh))
 }
 
 func newRefreshToken() (refresh, refreshHash string) {

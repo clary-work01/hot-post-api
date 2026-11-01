@@ -28,6 +28,7 @@ func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/register", h.register)
 	mux.HandleFunc("POST /auth/login", h.login)
 	mux.HandleFunc("POST /auth/refresh", h.refresh)
+	mux.HandleFunc("POST /auth/logout", h.logout)
 }
 
 // ---- DTO ----
@@ -177,4 +178,23 @@ func (h *AuthHandler) clearRefreshCookie(w http.ResponseWriter) {
 		Secure:   h.isCookieSecure,
 		SameSite: http.SameSiteStrictMode,
 	})
+}
+
+func (h *AuthHandler) logout(w http.ResponseWriter, r *http.Request) {
+	// 不管後面成不成功，瀏覽器端的 cookie 都先清掉
+	h.clearRefreshCookie(w)
+
+	cookie, err := r.Cookie(refreshCookieName)
+	if err != nil {
+		// 沒帶 cookie：本來就沒登入，直接當成功
+		JSON(w, http.StatusOK, "logout success", nil)
+		return
+	}
+
+	if err := h.svc.Logout(r.Context(), cookie.Value); err != nil {
+		writeError(w, r, err) // 只有 DB 錯誤會到這 → 500
+		return
+	}
+
+	JSON(w, http.StatusOK, "logout success", nil)
 }
