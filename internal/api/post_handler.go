@@ -24,6 +24,8 @@ func (h *PostHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /posts", h.create)
 	mux.HandleFunc("GET /posts/{id}", h.detail)
 	mux.HandleFunc("GET /posts", h.list)
+	mux.HandleFunc("PUT /posts/{id}/like", h.like)
+	mux.HandleFunc("DELETE /posts/{id}/like", h.unlike)
 
 }
 
@@ -195,4 +197,40 @@ func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, "get post list success", toPostListResp(list, total))
+}
+
+// PUT /posts/{id}/like
+func (h *PostHandler) like(w http.ResponseWriter, r *http.Request) {
+	postID, err := parseID(r)
+	if err != nil {
+		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
+		return
+	}
+
+	userID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+
+	if err := h.svc.Like(r.Context(), postID, userID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	JSON(w, http.StatusOK, "like post success", nil)
+}
+
+// DELETE /posts/{id}/like
+func (h *PostHandler) unlike(w http.ResponseWriter, r *http.Request) {
+	postID, err := parseID(r)
+	if err != nil {
+		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
+		return
+	}
+
+	userID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+
+	if err := h.svc.UnLike(r.Context(), postID, userID); err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	JSON(w, http.StatusOK, "unlike post success", nil)
 }

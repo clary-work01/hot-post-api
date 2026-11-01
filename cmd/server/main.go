@@ -11,7 +11,6 @@ import (
 	"github.com/clary-work01/hot-post-api/internal/api"
 	"github.com/clary-work01/hot-post-api/internal/config"
 	"github.com/clary-work01/hot-post-api/internal/domain/auth"
-	"github.com/clary-work01/hot-post-api/internal/domain/like"
 	"github.com/clary-work01/hot-post-api/internal/domain/post"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
 	"github.com/clary-work01/hot-post-api/internal/infra/cache"
@@ -69,7 +68,6 @@ func run() error {
 	authSvc := auth.NewService(auth.NewRepo(gormDB), userRepo, tokenMgr)
 	userSvc := user.NewService(userRepo)
 	postSvc := post.NewService(post.NewRepo(gormDB))
-	likeSvc := like.NewService(like.NewRepo(gormDB))
 
 	authHandler := api.NewAuthHandler(authSvc, cfg.IsProduction())
 	authHandler.RegisterRoutes(mux)
@@ -79,9 +77,6 @@ func run() error {
 
 	postHandler := api.NewPostHandler(postSvc)
 	postHandler.RegisterRoutes(mux)
-
-	likeHandler := api.NewLikeHandler(likeSvc)
-	likeHandler.RegisterRoutes(mux)
 
 	// ---- Start Server ----
 	slog.Info("server starting", "port", cfg.Port)

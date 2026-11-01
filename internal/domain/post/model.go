@@ -42,3 +42,9 @@ type Summary struct {
 	UpdatedAt  time.Time
 	IsLiked    bool
 }
+
+type PostLike struct {
+	PostID    uuid.UUID
+	UserID    uuid.UUID
+	CreatedAt time.Time
+}

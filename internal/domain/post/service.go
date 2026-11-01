@@ -37,3 +37,26 @@ func (s *Service) Detail(ctx context.Context, postID, viewerID uuid.UUID) (*Deta
 func (s *Service) List(ctx context.Context, offset, limit int, viewerID uuid.UUID) (list []Summary, total int64, err error) {
 	return s.repo.list(ctx, offset, limit, viewerID)
 }
+
+func (s *Service) Like(ctx context.Context, postID, userID uuid.UUID) error {
+	postLike := PostLike{
+		PostID: postID,
+		UserID: userID,
+	}
+
+	_, err := s.repo.like(ctx, &postLike)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) UnLike(ctx context.Context, postID, userID uuid.UUID) error {
+	_, err := s.repo.unlike(ctx, postID, userID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
