@@ -130,16 +130,19 @@ func toPostListResp(list []post.Summary, total int64) postListResp {
 func (h *PostHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req createPostReq
 	if err := decodeJSON(w, r, &req); err != nil {
-		JSON(w, http.StatusBadRequest, "參數錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數錯誤")
 		return
 	}
 
 	if err := req.validate(); err != nil {
-		JSON(w, http.StatusBadRequest, err.Error(), nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, err.Error())
 		return
 	}
 
-	authorID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+	authorID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
 
 	p, err := h.svc.Create(
 		r.Context(),
@@ -159,11 +162,14 @@ func (h *PostHandler) create(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) detail(w http.ResponseWriter, r *http.Request) {
 	postID, err := parseID(r)
 	if err != nil {
-		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數id錯誤")
 		return
 	}
 
-	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+	viewerID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
 
 	p, err := h.svc.Detail(r.Context(), postID, viewerID)
 	if err != nil {
@@ -176,18 +182,21 @@ func (h *PostHandler) detail(w http.ResponseWriter, r *http.Request) {
 
 // GET /posts?limit=&offset=
 func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
-	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+	viewerID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
 
 	q := r.URL.Query()
 	offset, ok := parseOffset(q.Get("offset"))
 	if !ok {
-		JSON(w, http.StatusBadRequest, "參數offset錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數offset錯誤")
 		return
 	}
 
 	limit, ok := parseLimit(q.Get("limit"))
 	if !ok {
-		JSON(w, http.StatusBadRequest, "參數limit錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數limit錯誤")
 		return
 	}
 
@@ -204,11 +213,14 @@ func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) like(w http.ResponseWriter, r *http.Request) {
 	postID, err := parseID(r)
 	if err != nil {
-		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數id錯誤")
 		return
 	}
 
-	userID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+	userID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
 
 	if err := h.svc.Like(r.Context(), postID, userID); err != nil {
 		writeError(w, r, err)
@@ -222,11 +234,14 @@ func (h *PostHandler) like(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) unlike(w http.ResponseWriter, r *http.Request) {
 	postID, err := parseID(r)
 	if err != nil {
-		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數id錯誤")
 		return
 	}
 
-	userID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+	userID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
 
 	if err := h.svc.UnLike(r.Context(), postID, userID); err != nil {
 		writeError(w, r, err)

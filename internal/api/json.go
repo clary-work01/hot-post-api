@@ -13,6 +13,8 @@ import (
 	"github.com/clary-work01/hot-post-api/internal/token"
 )
 
+// ---- request ----
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, data any) error {
 	maxBytes := 1_048_576
 	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
@@ -23,56 +25,101 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, data any) error {
 	return decoder.Decode(data)
 }
 
+// ---- response ----
+
+type errorCode string
+
+const (
+	// auth
+	codeInvalidCredentials  errorCode = "invalid_credentials"
+	codeInvalidRefreshToken errorCode = "invalid_refresh_token"
+
+	// jwt
+	codeInvalidToken errorCode = "invalid_token"
+	codeTokenExpired errorCode = "token_expired"
+
+	// user
+	codeUsernameTaken    errorCode = "username_taken"
+	codeCannotFollowSelf errorCode = "cannot_follow_self"
+
+	// 共用
+	codeInvalidInput errorCode = "invalid_input"
+	codeUnauthorized errorCode = "unauthorized"
+	codeNotFound     errorCode = "not_found"
+	codeConflict     errorCode = "conflict"
+	codeInternal     errorCode = "internal_error"
+)
+
 type jsonResp struct {
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
+	Code    errorCode `json:"code,omitempty"` // 只有錯誤回應會有
+	Message string    `json:"message"`
+	Data    any       `json:"data,omitempty"`
 }
 
-func JSON(w http.ResponseWriter, status int, msg string, data any) error {
+func encodeJSON(w http.ResponseWriter, status int, resp jsonResp) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	return json.NewEncoder(w).Encode(jsonResp{
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("encode json response", "error", err)
+	}
+}
+
+// 成功回應
+func JSON(w http.ResponseWriter, status int, msg string, data any) {
+	encodeJSON(w, status, jsonResp{
 		Message: msg,
 		Data:    data,
 	})
 }
 
+// 錯誤回應
+func errorJSON(w http.ResponseWriter, status int, code errorCode, msg string) {
+	encodeJSON(w, status, jsonResp{
+		Code:    code,
+		Message: msg,
+	})
+}
+
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	// ---- user ----
-	case errors.Is(err, user.ErrCannotFollowSelf):
-		JSON(w, http.StatusBadRequest, "不能關注自己", nil) // 400
-
-	case errors.Is(err, user.ErrUsernameTaken):
-		JSON(w, http.StatusBadRequest, "用戶名已存在", nil) // 400
-
 	// ---- auth ----
+
 	case errors.Is(err, auth.ErrInvalidCredentials):
-		JSON(w, http.StatusUnauthorized, "帳密錯誤", nil) // 401
+		errorJSON(w, http.StatusUnauthorized, codeInvalidCredentials, "帳密錯誤") // 401
+
+	case errors.Is(err, auth.ErrInvalidRefreshToken):
+		errorJSON(w, http.StatusUnauthorized, codeInvalidRefreshToken, "請重新登入") // 401
 
 	// ---- jwt ----
 	case errors.Is(err, token.ErrInvalidToken):
-		JSON(w, http.StatusUnauthorized, "token無效", "invalid_token") // 401
+		errorJSON(w, http.StatusUnauthorized, codeInvalidToken, "token無效") // 401
 
 	case errors.Is(err, token.ErrExpiredToken):
-		JSON(w, http.StatusUnauthorized, "token過期", "token_expired") // 401
+		errorJSON(w, http.StatusUnauthorized, codeTokenExpired, "token過期") // 401
+
+	// ---- user ----
+	case errors.Is(err, user.ErrCannotFollowSelf):
+		errorJSON(w, http.StatusBadRequest, codeCannotFollowSelf, "不能關注自己") // 400
+
+	case errors.Is(err, user.ErrUsernameTaken):
+		errorJSON(w, http.StatusConflict, codeUsernameTaken, "用戶名已存在") // 409
 
 	// ---- 共用 ----
 	case errors.Is(err, domain.ErrInvalidInput):
-		JSON(w, http.StatusBadRequest, "參數錯誤", nil) // 400
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數錯誤") // 400
 
 	case errors.Is(err, domain.ErrUnauthorized):
-		JSON(w, http.StatusUnauthorized, "未授權", nil) // 401
+		errorJSON(w, http.StatusUnauthorized, codeUnauthorized, "未授權") // 401
 
 	case errors.Is(err, domain.ErrNotFound):
-		JSON(w, http.StatusNotFound, "資源不存在", nil) // 404
+		errorJSON(w, http.StatusNotFound, codeNotFound, "資源不存在") // 404
 
 	case errors.Is(err, domain.ErrConflict):
-		JSON(w, http.StatusConflict, "已存在", nil) // 409
+		errorJSON(w, http.StatusConflict, codeConflict, "已存在") // 409
 
 	default:
-		JSON(w, http.StatusInternalServerError, "系統錯誤", nil)
+		errorJSON(w, http.StatusInternalServerError, codeInternal, "系統錯誤")
 
 		// 只有非預期錯誤才 log 完整 error chain, 4xx 不用 log 成 error
 		slog.Error("internal server error", "method", r.Method, "path", r.URL.Path, "error", err)

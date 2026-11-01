@@ -38,8 +38,19 @@ func RequireAuth(v TokenVerifier) Middleware {
 	}
 }
 
-func UserID(ctx context.Context) (uuid.UUID, bool) {
+// 只負責「拿」，拿不到是正常情況
+func userIDFromCtx(ctx context.Context) (uuid.UUID, bool) {
 	id, ok := ctx.Value(ctxKey{}).(uuid.UUID)
+	return id, ok
+}
+
+// 從 context 拿登入者 id
+// 一定要有，沒有就回 401
+func currentUser(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, ok := userIDFromCtx(r.Context())
+	if !ok {
+		writeError(w, r, domain.ErrUnauthorized)
+	}
 	return id, ok
 }
 

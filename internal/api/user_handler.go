@@ -1,11 +1,9 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
 	"github.com/google/uuid"
 )
@@ -27,45 +25,8 @@ func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /users/{id}/followees", h.requireAuth(h.followees))
 }
 
-// PUT /users/{id}/follow
-func (h *UserHandler) follow(w http.ResponseWriter, r *http.Request) {
-	followeeID, err := parseID(r)
-	if err != nil {
-		writeError(w, r, fmt.Errorf("parse id %w", domain.ErrInvalidInput))
-		return
-	}
-
-	followerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
-
-	err = h.svc.Follow(r.Context(), followerID, followeeID)
-	if err != nil {
-		writeError(w, r, err)
-		return
-	}
-
-	JSON(w, http.StatusOK, "follow user success", nil)
-}
-
-// DELETE /users/{id}/unfollow
-func (h *UserHandler) unfollow(w http.ResponseWriter, r *http.Request) {
-	followeeID, err := parseID(r)
-	if err != nil {
-		writeError(w, r, fmt.Errorf("parse id %w", domain.ErrInvalidInput))
-		return
-	}
-
-	followerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
-
-	err = h.svc.UnFollow(r.Context(), followerID, followeeID)
-	if err != nil {
-		writeError(w, r, err)
-		return
-	}
-
-	JSON(w, http.StatusOK, "unfollow user success", nil)
-}
-
 // ---- DTO ----
+
 type ProfileResp struct {
 	ID             uuid.UUID `json:"id"`
 	Username       string    `json:"username"`
@@ -112,14 +73,61 @@ func toFollowListResp(items []user.FollowItem) *FollowListResp {
 	return &FollowListResp{List: followItems}
 }
 
+// PUT /users/{id}/follow
+func (h *UserHandler) follow(w http.ResponseWriter, r *http.Request) {
+	followeeID, err := parseID(r)
+	if err != nil {
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數id錯誤")
+		return
+	}
+
+	followerID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+
+	err = h.svc.Follow(r.Context(), followerID, followeeID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	JSON(w, http.StatusOK, "follow user success", nil)
+}
+
+// DELETE /users/{id}/unfollow
+func (h *UserHandler) unfollow(w http.ResponseWriter, r *http.Request) {
+	followeeID, err := parseID(r)
+	if err != nil {
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數id錯誤")
+		return
+	}
+
+	followerID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+
+	err = h.svc.UnFollow(r.Context(), followerID, followeeID)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	JSON(w, http.StatusOK, "unfollow user success", nil)
+}
+
 // GET /users/{id}
 func (h *UserHandler) profile(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseID(r)
 	if err != nil {
-		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數id錯誤")
 		return
 	}
-	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+	viewerID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
 
 	profile, err := h.svc.Profile(r.Context(), userID, viewerID)
 	if err != nil {
@@ -134,21 +142,25 @@ func (h *UserHandler) profile(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) followers(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseID(r)
 	if err != nil {
-		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數id錯誤")
 		return
 	}
-	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+
+	viewerID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
 
 	q := r.URL.Query()
 	offset, ok := parseOffset(q.Get("offset"))
 	if !ok {
-		JSON(w, http.StatusBadRequest, "參數offset錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數offset錯誤")
 		return
 	}
 
 	limit, ok := parseLimit(q.Get("limit"))
 	if !ok {
-		JSON(w, http.StatusBadRequest, "參數limit錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數limit錯誤")
 		return
 	}
 
@@ -165,21 +177,24 @@ func (h *UserHandler) followers(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) followees(w http.ResponseWriter, r *http.Request) {
 	userID, err := parseID(r)
 	if err != nil {
-		JSON(w, http.StatusBadRequest, "參數id錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數id錯誤")
 		return
 	}
-	viewerID := uuid.MustParse("d2c5d597-4b6b-4d11-ac6a-06b5b66e1f47") // TODO: 從 JWT 獲得
+	viewerID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
 
 	q := r.URL.Query()
 	offset, ok := parseOffset(q.Get("offset"))
 	if !ok {
-		JSON(w, http.StatusBadRequest, "參數offset錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數offset錯誤")
 		return
 	}
 
 	limit, ok := parseLimit(q.Get("limit"))
 	if !ok {
-		JSON(w, http.StatusBadRequest, "參數limit錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數limit錯誤")
 		return
 	}
 

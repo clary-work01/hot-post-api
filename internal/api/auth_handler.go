@@ -2,12 +2,15 @@ package api
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/clary-work01/hot-post-api/internal/domain/auth"
+	"github.com/google/uuid"
 )
+
+const refreshCookieName = "refresh_token"
 
 type AuthHandler struct {
 	svc            *auth.Service
@@ -24,6 +27,7 @@ func NewAuthHandler(svc *auth.Service, isCookieSecure bool) *AuthHandler {
 func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/register", h.register)
 	mux.HandleFunc("POST /auth/login", h.login)
+	mux.HandleFunc("POST /auth/refresh", h.refresh)
 }
 
 // ---- DTO ----
@@ -58,18 +62,28 @@ func (req *loginReq) validate() error {
 	return nil
 }
 
+type userResp struct {
+	ID        uuid.UUID `json:"id"`
+	Username  string    `json:"username"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type tokenResp struct {
+	AccessToken string `json:"access_token"`
+}
+
 // POST /auth/register
 func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 	var req registerReq
 
 	err := decodeJSON(w, r, &req)
 	if err != nil {
-		JSON(w, http.StatusBadRequest, "參數錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數錯誤")
 		return
 	}
 
 	if err := req.validate(); err != nil {
-		JSON(w, http.StatusBadRequest, err.Error(), nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, err.Error())
 		return
 	}
 
@@ -79,31 +93,67 @@ func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	JSON(w, http.StatusCreated, "register success", u.Username)
+	JSON(w, http.StatusCreated, "register success", userResp{
+		ID:        u.ID,
+		Username:  u.Username,
+		CreatedAt: u.CreatedAt,
+	})
 }
 
 // POST /auth/login
 func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
 	if err := decodeJSON(w, r, &req); err != nil {
-		JSON(w, http.StatusBadRequest, "參數錯誤", nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, "參數錯誤")
 		return
 	}
 
 	if err := req.validate(); err != nil {
-		JSON(w, http.StatusBadRequest, err.Error(), nil)
+		errorJSON(w, http.StatusBadRequest, codeInvalidInput, err.Error())
 		return
 	}
 
 	res, err := h.svc.Login(r.Context(), req.Username, req.Password)
 	if err != nil {
-		writeError(w, r, fmt.Errorf("login: %w", err))
+		writeError(w, r, err)
 		return
 	}
 
+	h.setRefreshCookie(w, res.RefreshToken)
+
+	JSON(w, http.StatusOK, "login success", tokenResp{
+		AccessToken: res.AccessToken,
+	})
+}
+
+// POST /auth/refresh
+func (h *AuthHandler) refresh(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie(refreshCookieName)
+	if err != nil {
+		writeError(w, r, auth.ErrInvalidRefreshToken)
+		return
+	}
+
+	res, err := h.svc.Refresh(r.Context(), cookie.Value)
+	if errors.Is(err, auth.ErrInvalidRefreshToken) {
+		h.clearRefreshCookie(w)
+	}
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+
+	h.setRefreshCookie(w, res.RefreshToken)
+
+	JSON(w, http.StatusOK, "refresh success", tokenResp{
+		AccessToken: res.AccessToken,
+	})
+}
+
+func (h *AuthHandler) setRefreshCookie(w http.ResponseWriter, refreshToken string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:  "refresh_token",
-		Value: res.RefreshToken,
+		Name:  refreshCookieName,
+		Value: refreshToken,
 		// 只有 /auth/... 開頭的請求會帶上
 		Path: "/auth",
 		// 存活秒數，7 天後瀏覽器自動刪除
@@ -115,8 +165,16 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 		// 只有從你自己網站發出的請求才帶
 		SameSite: http.SameSiteStrictMode,
 	})
+}
 
-	JSON(w, http.StatusOK, "login success", map[string]any{
-		"access_token": res.AccessToken,
+func (h *AuthHandler) clearRefreshCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     refreshCookieName,
+		Value:    "",
+		Path:     "/auth",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   h.isCookieSecure,
+		SameSite: http.SameSiteStrictMode,
 	})
 }

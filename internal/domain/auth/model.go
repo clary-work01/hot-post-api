@@ -8,7 +8,10 @@ import (
 	"gorm.io/gorm"
 )
 
-var ErrInvalidCredentials = errors.New("invalid username or password")
+var (
+	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+	ErrInvalidCredentials  = errors.New("invalid username or password")
+)
 
 type RefreshToken struct {
 	ID        uuid.UUID

@@ -81,14 +81,11 @@ func (s *Service) Login(ctx context.Context, username, password string) (*LoginR
 		return nil, fmt.Errorf("sign access token: %w", err)
 	}
 
-	refresh, err := randomToken()
-	if err != nil {
-		return nil, fmt.Errorf("generate refresh token: %w", err)
-	}
+	refresh, refreshHash := newRefreshToken()
 
 	if err := s.repo.createRefreshToken(ctx, &RefreshToken{
 		UserID:    u.ID,
-		TokenHash: hashToken(refresh),
+		TokenHash: refreshHash,
 		ExpiresAt: time.Now().Add(RefreshTTL),
 	}); err != nil {
 		return nil, err
@@ -100,14 +97,51 @@ func (s *Service) Login(ctx context.Context, username, password string) (*LoginR
 	}, nil
 }
 
-// 32 bytes 的 crypto/rand，夠長猜不到
-func randomToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("read random bytes: %w", err)
+type RefreshResult struct {
+	AccessToken  string
+	RefreshToken string
+}
+
+func (s *Service) Refresh(ctx context.Context, oldRefresh string) (*RefreshResult, error) {
+	if oldRefresh == "" {
+		return nil, ErrInvalidRefreshToken
 	}
 
-	return base64.RawURLEncoding.EncodeToString(b), nil
+	newRefresh, newRefreshHash := newRefreshToken()
+
+	userID, err := s.repo.RotateRefreshToken(ctx, hashToken(oldRefresh), &RefreshToken{
+		TokenHash: newRefreshHash,
+		ExpiresAt: time.Now().Add(RefreshTTL),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	newAccess, err := s.tokenMgr.Sign(userID)
+	if err != nil {
+		return nil, fmt.Errorf("sign access token: %w", err)
+	}
+
+	return &RefreshResult{
+		AccessToken:  newAccess,
+		RefreshToken: newRefresh,
+	}, nil
+}
+
+func newRefreshToken() (refresh, refreshHash string) {
+	refresh = generateToken()
+	refreshHash = hashToken(refresh)
+	return refresh, refreshHash
+}
+
+// 32 bytes 的 crypto/rand，夠長猜不到
+func generateToken() string {
+	b := make([]byte, 32)
+	// Go 1.24 以後 crypto/rand.Read 保證不回傳錯誤（失敗會直接讓程式終止）
+	rand.Read(b)
+	token := base64.RawURLEncoding.EncodeToString(b)
+
+	return token
 }
 
 func hashToken(t string) string {
