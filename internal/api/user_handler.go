@@ -11,19 +11,20 @@ import (
 )
 
 type UserHandler struct {
-	svc *user.Service
+	svc         *user.Service
+	requireAuth Middleware
 }
 
-func NewUserHandler(svc *user.Service) *UserHandler {
-	return &UserHandler{svc}
+func NewUserHandler(svc *user.Service, requireAuth Middleware) *UserHandler {
+	return &UserHandler{svc: svc, requireAuth: requireAuth}
 }
 
 func (h *UserHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("PUT /users/{id}/follow", h.follow)
-	mux.HandleFunc("DELETE /users/{id}/follow", h.unfollow)
-	mux.HandleFunc("GET /users/{id}", h.profile)
-	mux.HandleFunc("GET /users/{id}/followers", h.followers)
-	mux.HandleFunc("GET /users/{id}/followees", h.followees)
+	mux.HandleFunc("PUT /users/{id}/follow", h.requireAuth(h.follow))
+	mux.HandleFunc("DELETE /users/{id}/follow", h.requireAuth(h.unfollow))
+	mux.HandleFunc("GET /users/{id}", h.requireAuth(h.profile))
+	mux.HandleFunc("GET /users/{id}/followers", h.requireAuth(h.followers))
+	mux.HandleFunc("GET /users/{id}/followees", h.requireAuth(h.followees))
 }
 
 // PUT /users/{id}/follow

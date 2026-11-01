@@ -11,22 +11,23 @@ import (
 )
 
 type PostHandler struct {
-	svc *post.Service
+	svc         *post.Service
+	requireAuth Middleware
 }
 
-func NewPostHandler(svc *post.Service) *PostHandler {
+func NewPostHandler(svc *post.Service, requireAuth Middleware) *PostHandler {
 	return &PostHandler{
-		svc: svc,
+		svc:         svc,
+		requireAuth: requireAuth,
 	}
 }
 
 func (h *PostHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /posts", h.create)
-	mux.HandleFunc("GET /posts/{id}", h.detail)
-	mux.HandleFunc("GET /posts", h.list)
-	mux.HandleFunc("PUT /posts/{id}/like", h.like)
-	mux.HandleFunc("DELETE /posts/{id}/like", h.unlike)
-
+	mux.HandleFunc("POST /posts", h.requireAuth(h.create))
+	mux.HandleFunc("GET /posts/{id}", h.requireAuth(h.detail))
+	mux.HandleFunc("GET /posts", h.requireAuth(h.list))
+	mux.HandleFunc("PUT /posts/{id}/like", h.requireAuth(h.like))
+	mux.HandleFunc("DELETE /posts/{id}/like", h.requireAuth(h.unlike))
 }
 
 // ---- request DTO ----

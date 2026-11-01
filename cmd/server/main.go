@@ -56,13 +56,11 @@ func run() error {
 
 	// ---- Routes  ----
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health",
-		func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("OK"))
-		})
+	mux.HandleFunc("GET /health", health)
 
 	tokenMgr := token.NewManager(cfg.JWTSecret, auth.AccessTTL)
+	requireAuth := api.RequireAuth(tokenMgr)
+
 	userRepo := user.NewRepo(gormDB)
 
 	authSvc := auth.NewService(auth.NewRepo(gormDB), userRepo, tokenMgr)
@@ -72,10 +70,10 @@ func run() error {
 	authHandler := api.NewAuthHandler(authSvc, cfg.IsProduction())
 	authHandler.RegisterRoutes(mux)
 
-	userHandler := api.NewUserHandler(userSvc)
+	userHandler := api.NewUserHandler(userSvc, requireAuth)
 	userHandler.RegisterRoutes(mux)
 
-	postHandler := api.NewPostHandler(postSvc)
+	postHandler := api.NewPostHandler(postSvc, requireAuth)
 	postHandler.RegisterRoutes(mux)
 
 	// ---- Start Server ----
@@ -85,4 +83,9 @@ func run() error {
 	}
 
 	return nil
+}
+
+func health(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }

@@ -3,12 +3,14 @@ package api
 import (
 	"encoding/json"
 	"errors"
+
 	"log/slog"
 	"net/http"
 
 	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/clary-work01/hot-post-api/internal/domain/auth"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
+	"github.com/clary-work01/hot-post-api/internal/token"
 )
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, data any) error {
@@ -38,17 +40,30 @@ func JSON(w http.ResponseWriter, status int, msg string, data any) error {
 
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	// ---- user ----
 	case errors.Is(err, user.ErrCannotFollowSelf):
 		JSON(w, http.StatusBadRequest, "不能關注自己", nil) // 400
 
 	case errors.Is(err, user.ErrUsernameTaken):
 		JSON(w, http.StatusBadRequest, "用戶名已存在", nil) // 400
 
+	// ---- auth ----
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		JSON(w, http.StatusUnauthorized, "帳密錯誤", nil) // 401
 
+	// ---- jwt ----
+	case errors.Is(err, token.ErrInvalidToken):
+		JSON(w, http.StatusUnauthorized, "token無效", "invalid_token") // 401
+
+	case errors.Is(err, token.ErrExpiredToken):
+		JSON(w, http.StatusUnauthorized, "token過期", "token_expired") // 401
+
+	// ---- 共用 ----
 	case errors.Is(err, domain.ErrInvalidInput):
 		JSON(w, http.StatusBadRequest, "參數錯誤", nil) // 400
+
+	case errors.Is(err, domain.ErrUnauthorized):
+		JSON(w, http.StatusUnauthorized, "未授權", nil) // 401
 
 	case errors.Is(err, domain.ErrNotFound):
 		JSON(w, http.StatusNotFound, "資源不存在", nil) // 404
