@@ -43,6 +43,7 @@ func (s *Service) Profile(ctx context.Context, userID, viewerID uuid.UUID) (*Pro
 }
 
 func (s *Service) Followers(ctx context.Context, userID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
+	// 先樂觀查，空了才確認
 	items, err := s.repo.followers(ctx, userID, viewerID, offset, limit)
 	if err != nil {
 		return nil, err

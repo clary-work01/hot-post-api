@@ -115,7 +115,7 @@ func (r *Repo) profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profil
 }
 
 func (r *Repo) followers(ctx context.Context, followeeID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
-	var items []FollowItem
+	items := make([]FollowItem, 0)
 
 	err := r.db.WithContext(ctx).
 		Raw(`
@@ -135,7 +135,7 @@ func (r *Repo) followers(ctx context.Context, followeeID, viewerID uuid.UUID, of
 		return nil, fmt.Errorf("list followers (user %s): %w", followeeID, err)
 	}
 
-	return items, err
+	return items, nil
 }
 
 func (r *Repo) followees(ctx context.Context, followerID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
