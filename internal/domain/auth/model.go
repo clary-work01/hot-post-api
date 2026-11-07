@@ -1,16 +1,10 @@
 package auth
 
 import (
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-)
-
-var (
-	ErrInvalidRefreshToken = errors.New("invalid refresh token")
-	ErrInvalidCredentials  = errors.New("invalid username or password")
 )
 
 type RefreshToken struct {

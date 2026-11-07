@@ -42,7 +42,7 @@ func (r *Repo) rotateRefreshToken(ctx context.Context, oldTokenHash string, newT
 		`, oldTokenHash).Row().Scan(&userID)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrInvalidRefreshToken // 不存在 / 已用過 / 過期
+			return errInvalidRefreshToken // 不存在 / 已用過 / 過期
 		}
 		if err != nil {
 			return fmt.Errorf("revoke old refresh token: %w", err)

@@ -8,10 +8,10 @@ import (
 
 	"time"
 
-	"github.com/clary-work01/hot-post-api/internal/config"
 	"github.com/clary-work01/hot-post-api/internal/domain/post"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
 	"github.com/clary-work01/hot-post-api/internal/infra/db"
+	"github.com/clary-work01/hot-post-api/internal/platform/config"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

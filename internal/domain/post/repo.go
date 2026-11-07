@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -56,7 +55,7 @@ func (r *Repo) detail(ctx context.Context, postID, viewerID uuid.UUID) (*Detail,
 		Take(&detail).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, domain.ErrNotFound
+		return nil, errPostNotFound
 	}
 
 	if err != nil {
@@ -111,7 +110,7 @@ func (r *Repo) like(ctx context.Context, postLike *PostLike) (inserted bool, err
 
 		// 按讚的貼文不存在時，會回 FK violation
 		if errors.Is(res.Error, gorm.ErrForeignKeyViolated) {
-			return domain.ErrNotFound // 貼文不存在
+			return errPostNotFound // 貼文不存在
 		}
 
 		if res.Error != nil {
@@ -134,7 +133,7 @@ func (r *Repo) like(ctx context.Context, postLike *PostLike) (inserted bool, err
 		inserted = true
 		return nil
 	})
-	if errors.Is(err, domain.ErrNotFound) {
+	if errors.Is(err, errPostNotFound) {
 		return false, err
 	}
 

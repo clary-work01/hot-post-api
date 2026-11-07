@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -38,7 +37,7 @@ func (r *Repo) GetUserByUsername(ctx context.Context, username string) (*User, e
 	err := r.db.WithContext(ctx).Where("username = ?", username).Take(&u).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, domain.ErrNotFound
+		return nil, ErrUserNotFound
 	}
 
 	if err != nil {
@@ -48,15 +47,15 @@ func (r *Repo) GetUserByUsername(ctx context.Context, username string) (*User, e
 	return &u, nil
 }
 
+// 回傳 inserted：這次是否真的新增了一筆（重複追蹤時為 false）
 func (r *Repo) follow(ctx context.Context, follow *Follow) (inserted bool, err error) {
 	res := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
 		Create(follow)
 
 	err = res.Error
-	// gorm.ErrForeignKeyViolated 只有在開啟 TranslateError: true 時才會出現
 	if errors.Is(err, gorm.ErrForeignKeyViolated) {
-		return false, domain.ErrNotFound
+		return false, ErrUserNotFound
 	}
 
 	if err != nil {
@@ -66,15 +65,15 @@ func (r *Repo) follow(ctx context.Context, follow *Follow) (inserted bool, err e
 	return res.RowsAffected == 1, nil
 }
 
-func (r *Repo) unFollow(ctx context.Context, followerID, followeeID uuid.UUID) (inserted bool, err error) {
+// 回傳 deleted：這次是否真的刪了一筆（本來沒追蹤時為 false）
+func (r *Repo) unFollow(ctx context.Context, followerID, followeeID uuid.UUID) (deleted bool, err error) {
 	res := r.db.WithContext(ctx).
 		Where("follower_id = ? AND followee_id = ?", followerID, followeeID).
 		Delete(&Follow{})
 
 	err = res.Error
-	// gorm.ErrForeignKeyViolated 只有在開啟 TranslateError: true 時才會出現
 	if errors.Is(err, gorm.ErrForeignKeyViolated) {
-		return false, domain.ErrNotFound
+		return false, ErrUserNotFound
 	}
 
 	if err != nil {
@@ -108,7 +107,7 @@ func (r *Repo) profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profil
 
 	// Scan 查不到不會回 ErrRecordNotFound，要自己看筆數
 	if res.RowsAffected == 0 {
-		return nil, domain.ErrNotFound
+		return nil, ErrUserNotFound
 	}
 
 	return &profile, nil

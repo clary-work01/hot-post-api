@@ -4,18 +4,18 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"time"
 
 	"github.com/clary-work01/hot-post-api/internal/api"
-	"github.com/clary-work01/hot-post-api/internal/config"
 	"github.com/clary-work01/hot-post-api/internal/domain/auth"
 	"github.com/clary-work01/hot-post-api/internal/domain/post"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
 	"github.com/clary-work01/hot-post-api/internal/infra/cache"
 	"github.com/clary-work01/hot-post-api/internal/infra/db"
-	"github.com/clary-work01/hot-post-api/internal/token"
+	"github.com/clary-work01/hot-post-api/internal/platform/config"
+	"github.com/clary-work01/hot-post-api/internal/platform/logger"
+	"github.com/clary-work01/hot-post-api/internal/platform/token"
 )
 
 func main() {
@@ -30,6 +30,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	slog.Info("load config success")
+
+	logger := logger.New(cfg.IsProduction())
+	slog.SetDefault(logger)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -55,37 +59,23 @@ func run() error {
 	slog.Info("connect redis success")
 
 	// ---- Routes  ----
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", health)
-
 	tokenMgr := token.NewManager(cfg.JWTSecret, auth.AccessTTL)
-	requireAuth := api.RequireAuth(tokenMgr)
 
+	authRepo := auth.NewRepo(gormDB)
 	userRepo := user.NewRepo(gormDB)
+	authSvc := auth.NewService(authRepo, userRepo, tokenMgr)
 
-	authSvc := auth.NewService(auth.NewRepo(gormDB), userRepo, tokenMgr)
-	userSvc := user.NewService(userRepo)
-	postSvc := post.NewService(post.NewRepo(gormDB))
-
-	authHandler := api.NewAuthHandler(authSvc, cfg.IsProduction())
-	authHandler.RegisterRoutes(mux)
-
-	userHandler := api.NewUserHandler(userSvc, requireAuth)
-	userHandler.RegisterRoutes(mux)
-
-	postHandler := api.NewPostHandler(postSvc, requireAuth)
-	postHandler.RegisterRoutes(mux)
+	r := api.NewRouter(logger, tokenMgr, api.Handlers{
+		Auth: auth.NewHandler(authSvc, cfg.IsProduction()),
+		User: user.NewHandler(user.NewService(userRepo)),
+		Post: post.NewHandler(post.NewService(post.NewRepo(gormDB))),
+	})
 
 	// ---- Start Server ----
 	slog.Info("server starting", "port", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, mux); err != nil {
+	if err := r.Run(":" + cfg.Port); err != nil {
 		return fmt.Errorf("start server: %w", err)
 	}
 
 	return nil
-}
-
-func health(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
 }

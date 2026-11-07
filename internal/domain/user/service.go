@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 
-	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -15,9 +14,9 @@ func NewService(repo *Repo) *Service {
 	return &Service{repo}
 }
 
-func (s *Service) Follow(ctx context.Context, followerID, followeeID uuid.UUID) error {
+func (s *Service) follow(ctx context.Context, followerID, followeeID uuid.UUID) error {
 	if followerID == followeeID {
-		return ErrCannotFollowSelf
+		return errCannotFollowSelf
 	}
 
 	follow := Follow{
@@ -29,20 +28,20 @@ func (s *Service) Follow(ctx context.Context, followerID, followeeID uuid.UUID) 
 	return err
 }
 
-func (s *Service) UnFollow(ctx context.Context, followerID, followeeID uuid.UUID) error {
+func (s *Service) unFollow(ctx context.Context, followerID, followeeID uuid.UUID) error {
 	if followerID == followeeID {
-		return ErrCannotFollowSelf
+		return errCannotFollowSelf
 	}
 
 	_, err := s.repo.unFollow(ctx, followerID, followeeID)
 	return err
 }
 
-func (s *Service) Profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profile, error) {
+func (s *Service) profile(ctx context.Context, userID, viewerID uuid.UUID) (*Profile, error) {
 	return s.repo.profile(ctx, userID, viewerID)
 }
 
-func (s *Service) Followers(ctx context.Context, userID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
+func (s *Service) followers(ctx context.Context, userID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
 	// 先樂觀查，空了才確認
 	items, err := s.repo.followers(ctx, userID, viewerID, offset, limit)
 	if err != nil {
@@ -56,13 +55,13 @@ func (s *Service) Followers(ctx context.Context, userID, viewerID uuid.UUID, off
 			return nil, err
 		}
 		if !exists {
-			return nil, domain.ErrNotFound
+			return nil, ErrUserNotFound
 		}
 	}
 	return items, nil
 }
 
-func (s *Service) Followees(ctx context.Context, userID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
+func (s *Service) followees(ctx context.Context, userID, viewerID uuid.UUID, offset, limit int) ([]FollowItem, error) {
 	items, err := s.repo.followees(ctx, userID, viewerID, offset, limit)
 	if err != nil {
 		return nil, err
@@ -74,7 +73,7 @@ func (s *Service) Followees(ctx context.Context, userID, viewerID uuid.UUID, off
 			return nil, err
 		}
 		if !exists {
-			return nil, domain.ErrNotFound
+			return nil, ErrUserNotFound
 		}
 	}
 	return items, nil

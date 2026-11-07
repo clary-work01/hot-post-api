@@ -10,9 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/clary-work01/hot-post-api/internal/domain"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
-	"github.com/clary-work01/hot-post-api/internal/token"
+	"github.com/clary-work01/hot-post-api/internal/platform/token"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -35,7 +34,7 @@ func NewService(repo *Repo, userRepo *user.Repo, tokenMgr *token.Manager) *Servi
 	}
 }
 
-func (s *Service) Register(ctx context.Context, username, password string) (*user.User, error) {
+func (s *Service) register(ctx context.Context, username, password string) (*user.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
@@ -58,11 +57,11 @@ type LoginResult struct {
 	RefreshToken string // 原文，只回給前端，DB 只存 hash
 }
 
-func (s *Service) Login(ctx context.Context, username, password string) (*LoginResult, error) {
+func (s *Service) login(ctx context.Context, username, password string) (*LoginResult, error) {
 	u, err := s.userRepo.GetUserByUsername(ctx, username)
-	if errors.Is(err, domain.ErrNotFound) {
+	if errors.Is(err, user.ErrUserNotFound) {
 		// 帳號不存在和密碼錯誤回一樣的錯，不讓人猜出哪些帳號存在
-		return nil, ErrInvalidCredentials
+		return nil, errInvalidCredentials
 	}
 	if err != nil {
 		return nil, err
@@ -70,7 +69,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (*LoginR
 
 	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-		return nil, ErrInvalidCredentials
+		return nil, errInvalidCredentials
 	}
 	if err != nil {
 		return nil, fmt.Errorf("compare password: %w", err)
@@ -97,14 +96,14 @@ func (s *Service) Login(ctx context.Context, username, password string) (*LoginR
 	}, nil
 }
 
-type RefreshResult struct {
+type refreshResult struct {
 	AccessToken  string
 	RefreshToken string
 }
 
-func (s *Service) Refresh(ctx context.Context, oldRefresh string) (*RefreshResult, error) {
+func (s *Service) refresh(ctx context.Context, oldRefresh string) (*refreshResult, error) {
 	if oldRefresh == "" {
-		return nil, ErrInvalidRefreshToken
+		return nil, errInvalidRefreshToken
 	}
 
 	newRefresh, newRefreshHash := newRefreshToken()
@@ -122,15 +121,15 @@ func (s *Service) Refresh(ctx context.Context, oldRefresh string) (*RefreshResul
 		return nil, fmt.Errorf("sign access token: %w", err)
 	}
 
-	return &RefreshResult{
+	return &refreshResult{
 		AccessToken:  newAccess,
 		RefreshToken: newRefresh,
 	}, nil
 }
 
-func (s *Service) Logout(ctx context.Context, refresh string) error {
+func (s *Service) logout(ctx context.Context, refresh string) error {
 	if refresh == "" {
-		return ErrInvalidRefreshToken
+		return errInvalidRefreshToken
 	}
 
 	return s.repo.revokeRefreshToken(ctx, hashToken(refresh))

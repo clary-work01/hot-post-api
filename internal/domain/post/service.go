@@ -16,7 +16,7 @@ func NewService(repo *Repo) *Service {
 	}
 }
 
-func (s *Service) Create(ctx context.Context, authorID uuid.UUID, title string, content string) (*Post, error) {
+func (s *Service) create(ctx context.Context, authorID uuid.UUID, title string, content string) (*Post, error) {
 	p := &Post{
 		AuthorID: authorID,
 		Title:    title,
@@ -30,15 +30,15 @@ func (s *Service) Create(ctx context.Context, authorID uuid.UUID, title string, 
 	return p, nil
 }
 
-func (s *Service) Detail(ctx context.Context, postID, viewerID uuid.UUID) (*Detail, error) {
+func (s *Service) detail(ctx context.Context, postID, viewerID uuid.UUID) (*Detail, error) {
 	return s.repo.detail(ctx, postID, viewerID)
 }
 
-func (s *Service) List(ctx context.Context, offset, limit int, viewerID uuid.UUID) (list []Summary, total int64, err error) {
+func (s *Service) list(ctx context.Context, offset, limit int, viewerID uuid.UUID) (list []Summary, total int64, err error) {
 	return s.repo.list(ctx, offset, limit, viewerID)
 }
 
-func (s *Service) Like(ctx context.Context, postID, userID uuid.UUID) error {
+func (s *Service) like(ctx context.Context, postID, userID uuid.UUID) error {
 	postLike := PostLike{
 		PostID: postID,
 		UserID: userID,
@@ -52,7 +52,7 @@ func (s *Service) Like(ctx context.Context, postID, userID uuid.UUID) error {
 	return nil
 }
 
-func (s *Service) UnLike(ctx context.Context, postID, userID uuid.UUID) error {
+func (s *Service) unLike(ctx context.Context, postID, userID uuid.UUID) error {
 	_, err := s.repo.unlike(ctx, postID, userID)
 	if err != nil {
 		return err
