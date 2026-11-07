@@ -14,7 +14,7 @@ import (
 	"github.com/clary-work01/hot-post-api/internal/infra/cache"
 	"github.com/clary-work01/hot-post-api/internal/infra/db"
 	"github.com/clary-work01/hot-post-api/internal/platform/config"
-	"github.com/clary-work01/hot-post-api/internal/platform/logger"
+	"github.com/clary-work01/hot-post-api/internal/platform/logx"
 	"github.com/clary-work01/hot-post-api/internal/platform/token"
 )
 
@@ -32,7 +32,7 @@ func run() error {
 	}
 	slog.Info("load config success")
 
-	logger := logger.New(cfg.IsProduction())
+	logger := logx.New(cfg.IsProduction())
 	slog.SetDefault(logger)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
