@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS post-likes;
+DROP TABLE IF EXISTS post_likes;
