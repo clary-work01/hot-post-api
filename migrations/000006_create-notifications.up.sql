@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS notifications(
-    id UUID,
+    id UUID DEFAULT uuidv7(),
     actor_id UUID NOT NULL,
     recipient_id UUID NOT NULL,
     type TEXT NOT NULL,
