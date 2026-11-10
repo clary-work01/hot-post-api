@@ -2,17 +2,25 @@ package post
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 )
 
 type Service struct {
-	repo *Repo
+	repo     *Repo
+	notifier Notifier
 }
 
-func NewService(repo *Repo) *Service {
+type Notifier interface {
+	NotifyPostLiked(ctx context.Context, actorID, authorID, postID uuid.UUID) error
+	NotifyNewPost(ctx context.Context, authorID, postID uuid.UUID) // 非同步，只負責排入佇列，不回傳 error
+}
+
+func NewService(repo *Repo, notifier Notifier) *Service {
 	return &Service{
-		repo: repo,
+		repo:     repo,
+		notifier: notifier,
 	}
 }
 
@@ -23,9 +31,13 @@ func (s *Service) create(ctx context.Context, authorID uuid.UUID, title string, 
 		Content:  content,
 	}
 
-	if err := s.repo.create(ctx, p); err != nil {
+	postID, err := s.repo.create(ctx, p)
+	if err != nil {
 		return nil, err
 	}
+	slog.DebugContext(ctx, "1", "postID", postID)
+
+	s.notifier.NotifyNewPost(ctx, authorID, postID)
 
 	return p, nil
 }
@@ -44,9 +56,26 @@ func (s *Service) like(ctx context.Context, postID, userID uuid.UUID) error {
 		UserID: userID,
 	}
 
-	_, err := s.repo.like(ctx, &postLike)
+	authorID, inserted, err := s.repo.like(ctx, &postLike)
+
 	if err != nil {
 		return err
+	}
+
+	if !inserted {
+		return nil
+	}
+
+	err = s.notifier.NotifyPostLiked(ctx, userID, authorID, postID)
+	// 通知只是附帶效果，失敗了也不能讓按讚失敗。
+	// 錯誤在這裡被吞掉、不再往上傳，所以這裡就是它的邊界，在這裡 log 一次
+	if err != nil {
+		slog.WarnContext(ctx, "notify post liked failed",
+			"error", err,
+			"actor_id", userID,
+			"author_id", authorID,
+			"post_id", postID,
+		)
 	}
 
 	return nil

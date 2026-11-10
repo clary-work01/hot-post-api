@@ -19,15 +19,16 @@ func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db}
 }
 
-func (r *Repo) create(ctx context.Context, post *Post) error {
+func (r *Repo) create(ctx context.Context, post *Post) (uuid.UUID, error) {
+	// GORM 在 Create 成功後會自動把主鍵回填到你傳進去的 struct
 	err := r.db.WithContext(ctx).
 		Create(post).Error
 
 	if err != nil {
-		return fmt.Errorf("create post (author_id %s): %w", post.AuthorID, err)
+		return uuid.Nil, fmt.Errorf("create post (author_id %s): %w", post.AuthorID, err)
 	}
 
-	return nil
+	return post.ID, nil
 }
 
 const isLikedExpr = `EXISTS (
@@ -103,7 +104,7 @@ func (r *Repo) list(ctx context.Context, offset, limit int, viewerID uuid.UUID) 
 	return list, total, nil
 }
 
-func (r *Repo) like(ctx context.Context, postLike *PostLike) (inserted bool, err error) {
+func (r *Repo) like(ctx context.Context, postLike *PostLike) (authorID uuid.UUID, inserted bool, err error) {
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Clauses(clause.OnConflict{DoNothing: true}).
 			Create(postLike)
@@ -122,9 +123,21 @@ func (r *Repo) like(ctx context.Context, postLike *PostLike) (inserted bool, err
 			return nil
 		}
 
-		err := tx.Table("posts").
-			Where("id = ?", postLike.PostID).
-			UpdateColumn("like_count", gorm.Expr("like_count + 1")).Error
+		// err := tx.Model(&Post{}).
+		// 	Where("id = ?", postLike.PostID).
+		// 	UpdateColumn("like_count", gorm.Expr("like_count + 1")).Error
+
+		err := tx.Raw(`
+				UPDATE posts SET like_count = like_count + 1
+				WHERE id = ? 
+				RETURNING author_id
+			`, postLike.PostID).
+			Row().
+			Scan(&authorID)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			return errPostNotFound
+		}
 
 		if err != nil {
 			return fmt.Errorf("increment like count: %w", err)
@@ -134,14 +147,14 @@ func (r *Repo) like(ctx context.Context, postLike *PostLike) (inserted bool, err
 		return nil
 	})
 	if errors.Is(err, errPostNotFound) {
-		return false, err
+		return uuid.Nil, false, err
 	}
 
 	if err != nil {
-		return false, fmt.Errorf("like post (post %s, user %s): %w", postLike.PostID, postLike.UserID, err)
+		return uuid.Nil, false, fmt.Errorf("like post (post %s, user %s): %w", postLike.PostID, postLike.UserID, err)
 	}
 
-	return inserted, err
+	return authorID, inserted, err
 }
 
 func (r *Repo) unlike(ctx context.Context, postID, userID uuid.UUID) (deleted bool, err error) {

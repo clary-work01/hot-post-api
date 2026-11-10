@@ -13,6 +13,7 @@ import (
 
 	"github.com/clary-work01/hot-post-api/internal/api"
 	"github.com/clary-work01/hot-post-api/internal/domain/auth"
+	"github.com/clary-work01/hot-post-api/internal/domain/notification"
 	"github.com/clary-work01/hot-post-api/internal/domain/post"
 	"github.com/clary-work01/hot-post-api/internal/domain/user"
 	"github.com/clary-work01/hot-post-api/internal/infra/cache"
@@ -20,6 +21,7 @@ import (
 	"github.com/clary-work01/hot-post-api/internal/platform/config"
 	"github.com/clary-work01/hot-post-api/internal/platform/logx"
 	"github.com/clary-work01/hot-post-api/internal/platform/token"
+	"github.com/clary-work01/hot-post-api/internal/platform/workerpool"
 )
 
 const (
@@ -48,7 +50,7 @@ func run() error {
 	logger := logx.New(cfg.IsProduction())
 	slog.SetDefault(logger)
 
-	startCtx, cancelStart := context.WithTimeout(ctx, 5*time.Second)
+	startCtx, cancelStart := context.WithTimeout(ctx, startupTimeout)
 	defer cancelStart()
 
 	// ---- Postgres ----
@@ -85,11 +87,15 @@ func run() error {
 	authRepo := auth.NewRepo(gormDB)
 	userRepo := user.NewRepo(gormDB)
 	postRepo := post.NewRepo(gormDB)
+	notifRepo := notification.NewRepo(gormDB)
+
+	notifPool := workerpool.New("notification", 4, 1000, 30*time.Second)
+	notifSvc := notification.NewService(notifRepo, notifPool)
 
 	r := api.NewRouter(logger, tokenMgr, api.Handlers{
 		Auth: auth.NewHandler(auth.NewService(authRepo, userRepo, tokenMgr), cfg.IsProduction()),
-		User: user.NewHandler(user.NewService(userRepo)),
-		Post: post.NewHandler(post.NewService(postRepo)),
+		User: user.NewHandler(user.NewService(userRepo, notifSvc)),
+		Post: post.NewHandler(post.NewService(postRepo, notifSvc)),
 	})
 
 	// ---- Start Server ----
@@ -126,12 +132,17 @@ func run() error {
 	stop()
 
 	// 優雅關閉
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown server: %w", err)
 	}
+
+	if err := notifPool.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown notification pool: %w", err)
+	}
+
 	slog.Info("server stopped gracefully")
 
 	// return 之後 defer 依序關閉 Redis → Postgres

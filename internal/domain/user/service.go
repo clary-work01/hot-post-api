@@ -2,16 +2,22 @@ package user
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 )
 
 type Service struct {
-	repo *Repo
+	repo     *Repo
+	notifier followNotifier
 }
 
-func NewService(repo *Repo) *Service {
-	return &Service{repo}
+type followNotifier interface {
+	NotifyFollowed(ctx context.Context, followerID, followeeId uuid.UUID) error
+}
+
+func NewService(repo *Repo, notifier followNotifier) *Service {
+	return &Service{repo: repo, notifier: notifier}
 }
 
 func (s *Service) follow(ctx context.Context, followerID, followeeID uuid.UUID) error {
@@ -24,8 +30,26 @@ func (s *Service) follow(ctx context.Context, followerID, followeeID uuid.UUID) 
 		FolloweeID: followeeID,
 	}
 
-	_, err := s.repo.follow(ctx, &follow)
-	return err
+	inserted, err := s.repo.follow(ctx, &follow)
+	if err != nil {
+		return err
+	}
+
+	if !inserted {
+		return nil
+	}
+
+	if err := s.notifier.NotifyFollowed(ctx, followerID, followeeID); err != nil {
+		// 通知只是附帶效果，失敗了也不能讓follow失敗。
+		// 錯誤在這裡被吞掉、不再往上傳，所以這裡就是它的邊界，在這裡 log 一次
+		slog.WarnContext(ctx, "notify post liked failed",
+			"error", err,
+			"follower_id", followerID,
+			"followee_id", followeeID,
+		)
+	}
+
+	return nil
 }
 
 func (s *Service) unFollow(ctx context.Context, followerID, followeeID uuid.UUID) error {
